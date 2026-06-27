@@ -2431,25 +2431,27 @@
 
 <script>
   // ==========================================
-  // CONFIGURACIÓN API (GITHUB PAGES → APPS SCRIPT)
+  // CONFIGURACIÓN API
   // ==========================================
-  // ⚠️ REEMPLAZA ESTA URL con la URL de tu Web App desplegada en Google Apps Script
-  // Se ve así: https://script.google.com/macros/s/XXXXXXX...XXXX/exec
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbz92Gz1-D6110b4SqTPCltoqZkrAfNnFOWLc18rBdFSZeP3HXgNvMjTw2Bdx9xCX0xBeA/exec';
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbz92Gz1-D6110b4SqTPCltoqZkrAfNnFOWLc18rBdFSZeP3HXgNvMjTw2Bdx9xCX0xBeA/exec'; // Ej: https://script.google.com/macros/s/TU_ID/exec
 
   async function callGas(action, data = {}) {
     try {
-      const res = await fetch(GAS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action, ...data })
-      });
+      const params = new URLSearchParams();
+      params.set('action', action);
+      for (const key of Object.keys(data)) {
+        const val = data[key];
+        if (val !== null && val !== undefined) {
+          params.set(key, typeof val === 'object' ? JSON.stringify(val) : String(val));
+        }
+      }
+      const url = GAS_URL + '?' + params.toString();
+      const res = await fetch(url);
       const text = await res.text();
-      // Google Apps Script sometimes wraps responses in );]}'
-      const clean = text.replace(/^\)\]\}'\n/, '');
+      const clean = text.replace(/^\)\]}'\n/, '');
       return JSON.parse(clean);
     } catch(err) {
-      console.error('Error calling GAS:', err);
+      console.error('Error callGas:', action, err);
       return { success: false, message: 'Error de conexión' };
     }
   }
@@ -2493,21 +2495,14 @@
   // ==========================================
   // INICIALIZACIÓN
   // ==========================================
-  window.onload = function() {
-    (async function initApp() {
-      try {
-        const data = await callGas('getInitialData', { lang: 'ES' });
-        if (data.success === false && data.message) {
-          hideLoader();
-          showToast(data.message, 'err');
-          return;
-        }
-        initData(data);
-      } catch(err) {
-        hideLoader();
-        showToast('Error de conexión', 'err');
-      }
-    })();
+  window.onload = async function() {
+    try {
+      const data = await callGas('getInitialData', { lang: 'ES' });
+      initData(data);
+    } catch(err) {
+      hideLoader();
+      showToast('Error de conexión', 'err');
+    }
     initObserver();
     window.addEventListener('scroll', () => {
       document.getElementById('mainNav').classList.toggle('scrolled', window.scrollY > 50);
@@ -2526,22 +2521,19 @@
   // ==========================================
   // MOTOR DE TRADUCCIONES Y MONEDA
   // ==========================================
-  function setLang(lang) {
+  async function setLang(lang) {
     appState.lang = lang;
     showLoader();
-    (async function() {
-      try {
-        const data = await callGas('getInitialData', { lang: lang });
-        appState.translations = data.translations || {};
-        appState.products = data.products || {};
-        renderProducts();
-        applyTranslations();
-        hideLoader();
-      } catch(err) {
-        hideLoader();
-        showToast('Error de conexión', 'err');
-      }
-    })();
+    try {
+      const data = await callGas('getInitialData', { lang });
+      appState.translations = data.translations || {};
+      appState.products = data.products || [];
+      renderProducts();
+      applyTranslations();
+    } catch(e) {
+      showToast('Error al cambiar idioma', 'err');
+    }
+    hideLoader();
   }
 
   function applyTranslations() {
@@ -2928,7 +2920,7 @@
     applyTranslations();
   }
 
-  function submitOrder() {
+  async function submitOrder() {
     // Validaciones
     let name = document.getElementById('chkName').value.trim();
     let email = document.getElementById('chkEmail').value.trim();
@@ -2960,31 +2952,24 @@
       moneda: appState.cur
     };
     showLoader();
-    (async function() {
-      try {
-        const res = await callGas('saveOrder', { order: order });
-        hideLoader();
-        if (res.success) {
-          showToast('¡Pedido ' + res.orderId + ' realizado!', 'ok');
-          appState.cart = [];
-          updateCartUI();
-          closeModals();
-          document.getElementById('chkName').value = '';
-          document.getElementById('chkEmail').value = '';
-          document.getElementById('chkPhone').value = '';
-          document.getElementById('chkCountry').value = '';
-          document.getElementById('chkCity').value = '';
-          document.getElementById('chkZip').value = '';
-          document.getElementById('chkAddr').value = '';
-          if (payEl) payEl.value = '';
-        } else {
-          showToast(res.message || 'Error al procesar el pedido', 'err');
-        }
-      } catch(err) {
-        hideLoader();
-        showToast('Error de conexión', 'err');
-      }
-    })();
+    const res = await callGas('saveOrder', { order });
+    hideLoader();
+    if (res.success) {
+      showToast('¡Pedido ' + res.orderId + ' realizado!', 'ok');
+      appState.cart = [];
+      updateCartUI();
+      closeModals();
+      document.getElementById('chkName').value = '';
+      document.getElementById('chkEmail').value = '';
+      document.getElementById('chkPhone').value = '';
+      document.getElementById('chkCountry').value = '';
+      document.getElementById('chkCity').value = '';
+      document.getElementById('chkZip').value = '';
+      document.getElementById('chkAddr').value = '';
+      if (payEl) payEl.value = '';
+    } else {
+      showToast(res.message || 'Error al procesar el pedido', 'err');
+    }
   }
 
   // ==========================================
@@ -2992,22 +2977,20 @@
   // ==========================================
   function openLogin() { document.getElementById('overlay').style.display='block'; document.getElementById('modalLogin').style.display='block'; }
 
-  function doLogin() {
+  async function doLogin() {
     let u = document.getElementById('logUser').value, p = document.getElementById('logPass').value;
     let btn = document.querySelector('#modalLogin .btn-accent');
     let origBtn = btn ? btn.innerHTML : '';
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Ingresando...'; }
-    (async function() {
-      try {
-        const res = await callGas('verifyLogin', { user: u, pass: p });
-        if (btn) { btn.disabled = false; btn.innerHTML = origBtn; }
-        if(res.success) { appState.isAdmin = true; appState.adminToken = res.token; appState.adminRole = res.role || 'admin'; showLoader(); closeModals(); setTimeout(() => { showAdmin(); hideLoader(); }, 400); }
-        else showToast('Credenciales incorrectas', 'err');
-      } catch(err) {
-        if (btn) { btn.disabled = false; btn.innerHTML = origBtn; }
-        showToast('Error de conexión', 'err');
-      }
-    })();
+    try {
+      const res = await callGas('verifyLogin', { user: u, pass: p });
+      if (btn) { btn.disabled = false; btn.innerHTML = origBtn; }
+      if(res.success) { appState.isAdmin = true; appState.adminToken = res.token; appState.adminRole = res.role || 'admin'; showLoader(); closeModals(); setTimeout(() => { showAdmin(); hideLoader(); }, 400); }
+      else showToast('Credenciales incorrectas', 'err');
+    } catch(e) {
+      if (btn) { btn.disabled = false; btn.innerHTML = origBtn; }
+      showToast('Error de conexión', 'err');
+    }
   }
 
   function showAdmin() {
@@ -3038,34 +3021,42 @@
     if(tab === 'prod') {
       showAdminLoader();
       let isVisual = appState.adminRole === 'visual';
-      (async function() {
-        try {
-          const prods = await callGas('getAllProducts');
-          adminAllProducts = prods;
-          renderAdminProducts(prods, appState.adminRole === 'visual');
-        } catch(err) { showToast('Error al cargar productos', 'err'); }
+      (async () => {
+        const prods = await callGas('getAllProductsAdmin', { token: appState.adminToken });
+        adminAllProducts = prods || [];
+        let addBtn = isVisual ? '' : `<button onclick="openProdForm()" class="btn btn-accent btn-sm"><i class="fas fa-plus mr-2"></i>Añadir Producto</button>`;
+        let html = `<div class="adm-head"><h2><i class="fas fa-box-open mr-2" style="color:var(--adm-accent)"></i>Productos${isVisual ? ' <span style="font-size:.7rem;padding:3px 10px;border-radius:20px;background:rgba(212,145,94,.15);color:#D4915E;font-weight:700;vertical-align:middle">Solo lectura</span>' : ''}</h2>${addBtn}</div>`;
+        let thEstado = isVisual ? '' : '<th>Estado</th>';
+        let thRec = isVisual ? '' : '<th>Recomendar</th>';
+        let thAcciones = isVisual ? '' : '<th>Acciones</th>';
+        html += `<div class="adm-card overflow-x-auto"><table class="admin-tbl"><thead><tr><th>Imagen</th><th>Nombre</th><th>Precio</th>${thEstado}${thRec}${thAcciones}</tr></thead><tbody>`;
+        prods.forEach(p => { let imgHtml = p.Imagen ? `<img src="${p.Imagen}" style="width:40px;height:40px;object-fit:cover;border-radius:8px">` : `<div style="width:40px;height:40px;border-radius:8px;background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;color:var(--adm-muted)"><i class="fas fa-image"></i></div>`; let isRec = (p.Destacado === true || p.Destacado === 'TRUE'); let tdEstado = isVisual ? '' : `<td><div class="tog ${p.Activo?'on':''}" onclick="toggleProd('${p.ID}', this)"></div></td>`; let tdRec = isVisual ? '' : `<td><div class="tog tog-rec ${isRec?'on':''}" onclick="toggleRec('${p.ID}', this)" title="${isRec?'Quitar recomendación':'Recomendar producto'}"></div></td>`; let tdAcciones = isVisual ? '' : `<td><div style="display:flex;gap:8px"><button onclick="openProdForm('${p.ID}')" class="btn btn-sm" style="background:rgba(45,212,191,.1);color:var(--adm-accent);border:1px solid rgba(45,212,191,.2)" title="Editar"><i class="fas fa-pen"></i></button><button onclick="deleteProd('${p.ID}')" class="btn btn-sm" style="background:rgba(193,53,58,.1);color:#F87171;border:1px solid rgba(193,53,58,.2)" title="Eliminar"><i class="fas fa-trash"></i></button></div></td>`; html += `<tr><td>${imgHtml}</td><td><div class="font-semibold" style="color:#fff">${p.Nombre}</div><div class="text-xs" style="color:var(--adm-muted)">${p.Categoria || ''}</div></td><td style="color:var(--adm-accent);font-weight:600">$${p.PrecioCOP.toLocaleString('es-CO')}</td>${tdEstado}${tdRec}${tdAcciones}</tr>`; });
+        html += `</tbody></table></div>`; main.innerHTML = html;
       })();
 
     } else if(tab === 'dashboard') {
       let main = document.getElementById('adminMain');
       main.innerHTML = '<div style="text-align:center;padding:60px 20px"><i class="fas fa-spinner fa-spin" style="font-size:2rem;color:var(--adm-accent)"></i><p style="color:var(--adm-muted);margin-top:12px;font-size:.9rem">Cargando métricas...</p></div>';
-      (async function() {
+      (async () => {
         try {
           const data = await callGas('getDashboardData', { token: appState.adminToken });
           renderDashboard(data);
-        } catch(err) {
-          document.getElementById('adminMain').innerHTML = '<div class="dash-empty"><i class="fas fa-exclamation-triangle"></i>Error al cargar</div>';
+        } catch(e) {
+          document.getElementById('adminMain').innerHTML = '<div class="dash-empty"><i class="fas fa-exclamation-triangle"></i>Error al cargar datos</div>';
         }
       })();      
       
     } else if(tab === 'orders') {
       showAdminLoader();
       let isVisual = appState.adminRole === 'visual';
-      (async function() {
-        try {
-          const orders = await callGas('getOrders');
-          renderAdminOrders(orders);
-        } catch(err) { showToast('Error', 'err'); }
+      (async () => {
+        const orders = await callGas('getOrders', { token: appState.adminToken });
+        let html = `<div class="adm-head"><h2><i class="fas fa-clipboard-list mr-2" style="color:var(--adm-accent)"></i>Pedidos${isVisual ? ' <span style="font-size:.7rem;padding:3px 10px;border-radius:20px;background:rgba(212,145,94,.15);color:#D4915E;font-weight:700;vertical-align:middle">Solo lectura</span>' : ''}</h2></div>`;
+        if(orders.length === 0) { html += `<div class="adm-card text-center py-10" style="color:var(--adm-muted)"><i class="fas fa-inbox text-3xl mb-3 block" style="opacity:.3"></i>No hay pedidos aún</div>`; } else {
+          html += `<div class="adm-card overflow-x-auto"><table class="admin-tbl"><thead><tr><th>ID</th><th>Fecha</th><th>Cliente</th><th>Pago</th><th>Total</th><th>Estado</th></tr></thead><tbody>`;
+          orders.forEach(o => { let payMethod = o.MetodoPago || '-'; let payIcons = {'Nequi':'fa-mobile-screen','Daviplata':'fa-mobile-screen','Bancolombia':'fa-building-columns','PSE':'fa-laptop','Efectivo':'fa-money-bill','PayPal':'fa-brands fa-paypal','Tarjeta':'fa-credit-card'}; let payIcon = ''; Object.keys(payIcons).forEach(k => { if(payMethod.includes(k)) payIcon = '<i class="fas '+payIcons[k]+' mr-1" style="opacity:.7"></i>'; }); html += `<tr><td class="font-mono text-xs">${o.ID}</td><td class="text-sm">${new Date(o.Fecha).toLocaleDateString('es-CO')}</td><td class="text-sm">${o.NombreCliente}</td><td class="text-xs" style="color:var(--adm-text)">${payIcon}${payMethod}</td><td class="font-semibold" style="color:var(--adm-accent)">$${parseFloat(o.TotalCOP || 0).toLocaleString('es-CO')}</td><td>${isVisual ? `<span class="text-sm" style="color:var(--adm-text)">${o.Estado}</span>` : `<select class="fi fi-dark fi-select btn-sm" style="min-width:130px" onchange="updateStatus(${o._row}, this.value, this)"><option ${o.Estado==='Pendiente'?'selected':''}>Pendiente</option><option ${o.Estado==='Procesando'?'selected':''}>Procesando</option><option ${o.Estado==='Enviado'?'selected':''}>Enviado</option><option ${o.Estado==='Entregado'?'selected':''}>Entregado</option><option ${o.Estado==='Cancelado'?'selected':''}>Cancelado</option></select>`}</td></tr>`; });
+          html += `</tbody></table></div>`;
+        } main.innerHTML = html;
       })();
       
     } else if(tab === 'config') {
@@ -3084,36 +3075,11 @@
     }
   }
 
-
-  function renderAdminProducts(prods, isVisual) {
-    let main = document.getElementById('adminMain');
-    let addBtn = isVisual ? '' : `<button onclick="openProdForm()" class="btn btn-accent btn-sm"><i class="fas fa-plus mr-2"></i>Añadir Producto</button>`;
-    let html = `<div class="adm-head"><h2><i class="fas fa-box-open mr-2" style="color:var(--adm-accent)"></i>Productos${isVisual ? ' <span style="font-size:.7rem;padding:3px 10px;border-radius:20px;background:rgba(212,145,94,.15);color:#D4915E;font-weight:700;vertical-align:middle">Solo lectura</span>' : ''}</h2>${addBtn}</div>`;
-    let thEstado = isVisual ? '' : '<th>Estado</th>';
-    let thRec = isVisual ? '' : '<th>Recomendar</th>';
-    let thAcciones = isVisual ? '' : '<th>Acciones</th>';
-    html += `<div class="adm-card overflow-x-auto"><table class="admin-tbl"><thead><tr><th>Imagen</th><th>Nombre</th><th>Precio</th>${thEstado}${thRec}${thAcciones}</tr></thead><tbody>`;
-    prods.forEach(p => { let imgHtml = p.Imagen ? `<img src="${p.Imagen}" style="width:40px;height:40px;object-fit:cover;border-radius:8px">` : `<div style="width:40px;height:40px;border-radius:8px;background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;color:var(--adm-muted)"><i class="fas fa-image"></i></div>`; let isRec = (p.Destacado === true || p.Destacado === 'TRUE'); let tdEstado = isVisual ? '' : `<td><div class="tog ${p.Activo?'on':''}" onclick="toggleProd('${p.ID}', this)"></div></td>`; let tdRec = isVisual ? '' : `<td><div class="tog tog-rec ${isRec?'on':''}" onclick="toggleRec('${p.ID}', this)" title="${isRec?'Quitar recomendación':'Recomendar producto'}"></div></td>`; let tdAcciones = isVisual ? '' : `<td><div style="display:flex;gap:8px"><button onclick="openProdForm('${p.ID}')" class="btn btn-sm" style="background:rgba(45,212,191,.1);color:var(--adm-accent);border:1px solid rgba(45,212,191,.2)" title="Editar"><i class="fas fa-pen"></i></button><button onclick="deleteProd('${p.ID}')" class="btn btn-sm" style="background:rgba(193,53,58,.1);color:#F87171;border:1px solid rgba(193,53,58,.2)" title="Eliminar"><i class="fas fa-trash"></i></button></div></td>`; html += `<tr><td>${imgHtml}</td><td><div class="font-semibold" style="color:#fff">${p.Nombre}</div><div class="text-xs" style="color:var(--adm-muted)">${p.Categoria || ''}</div></td><td style="color:var(--adm-accent);font-weight:600">$${p.PrecioCOP.toLocaleString('es-CO')}</td>${tdEstado}${tdRec}${tdAcciones}</tr>`; });
-    html += `</tbody></table></div>`; main.innerHTML = html;
-  }
-
-
-  function renderAdminOrders(orders) {
-    let main = document.getElementById('adminMain');
-    let isVisual = appState.adminRole === 'visual';
-    let html = `<div class="adm-head"><h2><i class="fas fa-clipboard-list mr-2" style="color:var(--adm-accent)"></i>Pedidos${isVisual ? ' <span style="font-size:.7rem;padding:3px 10px;border-radius:20px;background:rgba(212,145,94,.15);color:#D4915E;font-weight:700;vertical-align:middle">Solo lectura</span>' : ''}</h2></div>`;
-    if(orders.length === 0) { html += `<div class="adm-card text-center py-10" style="color:var(--adm-muted)"><i class="fas fa-inbox text-3xl mb-3 block" style="opacity:.3"></i>No hay pedidos aún</div>`; } else {
-      html += `<div class="adm-card overflow-x-auto"><table class="admin-tbl"><thead><tr><th>ID</th><th>Fecha</th><th>Cliente</th><th>Pago</th><th>Total</th><th>Estado</th></tr></thead><tbody>`;
-      orders.forEach(o => { let payMethod = o.MetodoPago || '-'; let payIcons = {'Nequi':'fa-mobile-screen','Daviplata':'fa-mobile-screen','Bancolombia':'fa-building-columns','PSE':'fa-laptop','Efectivo':'fa-money-bill','PayPal':'fa-brands fa-paypal','Tarjeta':'fa-credit-card'}; let payIcon = ''; Object.keys(payIcons).forEach(k => { if(payMethod.includes(k)) payIcon = '<i class="fas '+payIcons[k]+' mr-1" style="opacity:.7"></i>'; }); html += `<tr><td class="font-mono text-xs">${o.ID}</td><td class="text-sm">${new Date(o.Fecha).toLocaleDateString('es-CO')}</td><td class="text-sm">${o.NombreCliente}</td><td class="text-xs" style="color:var(--adm-text)">${payIcon}${payMethod}</td><td class="font-semibold" style="color:var(--adm-accent)">$${parseFloat(o.TotalCOP || 0).toLocaleString('es-CO')}</td><td>${isVisual ? `<span class="text-sm" style="color:var(--adm-text)">${o.Estado}</span>` : `<select class="fi fi-dark fi-select btn-sm" style="min-width:130px" onchange="updateStatus(${o._row}, this.value, this)"><option ${o.Estado==='Pendiente'?'selected':''}>Pendiente</option><option ${o.Estado==='Procesando'?'selected':''}>Procesando</option><option ${o.Estado==='Enviado'?'selected':''}>Enviado</option><option ${o.Estado==='Entregado'?'selected':''}>Entregado</option><option ${o.Estado==='Cancelado'?'selected':''}>Cancelado</option></select>`}</td></tr>`; });
-      html += `</tbody></table></div>`;
-    } main.innerHTML = html;
-  }
-
   // Auxiliares Admin
   async function toggleProd(id, el) {
     el.style.pointerEvents = 'none'; el.style.opacity = '.5';
     try {
-      const res = await callGas('toggleProductStatus', { id, token: appState.adminToken });
+      const res = await callGas('toggleProductoStatus', { id, token: appState.adminToken });
       el.style.pointerEvents = ''; el.style.opacity = '';
       if (res.success) {
         el.classList.toggle('on');
@@ -3121,33 +3087,31 @@
       } else {
         showToast(res.message || 'Error al cambiar estado', 'err');
       }
-    } catch(err) { el.style.pointerEvents = ''; el.style.opacity = ''; showToast('Error de conexión', 'err'); }
+    } catch(e) {
+      el.style.pointerEvents = ''; el.style.opacity = '';
+      showToast('Error de conexión', 'err');
+    }
   }
-  function toggleRec(id, el) {
+  async function toggleRec(id, el) {
     el.style.pointerEvents = 'none'; el.style.opacity = '.5';
-    (async function() {
-      try {
-        const res = await callGas('toggleRecomendado', { id, token: appState.adminToken });
-        if (res && res.success) {
-          showToast(res.recommended ? 'Producto destacado' : 'Producto no destacado', 'ok');
-          el.style.pointerEvents = '';
-          el.style.opacity = res.recommended ? '1' : '.4';
-          el.innerHTML = res.recommended ? '<i class="fas fa-heart" style="color:var(--accent)"></i>' : '<i class="far fa-heart"></i>';
-        } else {
-          showToast(res.message || 'Error', 'err');
-          el.style.pointerEvents = '';
-          el.style.opacity = '';
-        }
-      } catch(err) {
-        el.style.pointerEvents = '';
-        el.style.opacity = '';
-        showToast('Error de conexión', 'err');
+    try {
+      const res = await callGas('toggleRecomendado', { id, token: appState.adminToken });
+      el.style.pointerEvents = ''; el.style.opacity = '';
+      if (res.success) {
+        el.classList.toggle('on');
+        el.title = res.recommended ? 'Quitar recomendación' : 'Recomendar producto';
+        showToast(res.recommended ? 'Producto recomendado' : 'Recomendación quitada', 'ok');
+      } else {
+        showToast(res.message || 'Error', 'err');
       }
-    })();
+    } catch(e) {
+      el.style.pointerEvents = ''; el.style.opacity = '';
+      showToast('Error de conexión', 'err');
+    }
   }
-  async function deleteProd(id) { if(!confirm('¿Inactivar este producto?')) return; showLoader(); try { const res = await callGas('deleteProduct', { id, token: appState.adminToken }); hideLoader(); if(res && res.success) { showAdminTab('prod'); } else { showToast((res && res.message) || 'Error al eliminar', 'err'); showAdminTab('prod'); } } catch(err) { hideLoader(); showToast('Error de conexión', 'err'); } }
-  async function updateStatus(row, val, el) { let orig = el.innerHTML; el.disabled = true; el.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>...'; try { const res = await callGas('updateOrderStatus', { row, estado: val, token: appState.adminToken }); el.disabled = false; el.innerHTML = orig; if(res && res.success) { showToast('Estado actualizado', 'ok'); } else { showToast((res && res.message) || 'Error', 'err'); el.innerHTML = orig; } } catch(err) { el.disabled = false; el.innerHTML = orig; showToast('Error', 'err'); } }
-  async function saveCfg(key, val, el) { let orig = el.value; el.disabled = true; el.style.opacity = '.5'; try { await callGas('updateConfig', { key, value: val, token: appState.adminToken }); el.disabled = false; el.style.opacity = ''; showToast('Configuración guardada', 'ok'); } catch(err) { el.disabled = false; el.style.opacity = ''; showToast('Error al guardar', 'err'); } }
+  async function deleteProd(id) { if(!confirm('¿Inactivar este producto?')) return; showLoader(); try { const res = await callGas('deleteProducto', { id, token: appState.adminToken }); hideLoader(); if(res && res.success) { showAdminTab('prod'); } else { showToast((res && res.message) || 'Error al eliminar', 'err'); showAdminTab('prod'); } } catch(e) { hideLoader(); showToast('Error de conexión', 'err'); } }
+  async function updateStatus(row, val, el) { let orig = el.innerHTML; el.disabled = true; el.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>...'; try { const res = await callGas('updateOrderStatus', { row, status: val, token: appState.adminToken }); el.disabled = false; el.innerHTML = orig; if(res && res.success) { showToast('Estado actualizado', 'ok'); } else { showToast((res && res.message) || 'Error', 'err'); el.innerHTML = orig; } } catch(e) { el.disabled = false; el.innerHTML = orig; showToast('Error', 'err'); } }
+  async function saveCfg(key, val, el) { let orig = el.value; el.disabled = true; el.style.opacity = '.5'; try { await callGas('updateConfig', { key, val, token: appState.adminToken }); el.disabled = false; el.style.opacity = ''; showToast('Configuración guardada', 'ok'); } catch(e) { el.disabled = false; el.style.opacity = ''; showToast('Error al guardar', 'err'); } }
 
   // ==========================================
   // FORMULARIO PRODUCTOS (CON IMAGENES)
@@ -3169,7 +3133,7 @@
     else c.innerHTML = `<img src="${url}" style="max-height:120px;border-radius:8px;border:1px solid var(--adm-border)" onerror="this.style.display='none'; this.parentElement.innerHTML='<p style=\\'color:#F87171;font-size:.8rem\\'>Error al cargar</p>'">`;
   }
 
-  function handleImgUpload(event) {
+  async function handleImgUpload(event) {
     let file = event.target.files[0]; if (!file) return;
     if (!file.type.startsWith('image/')) return showToast('Selecciona una imagen válida', 'err');
     if (file.size > 5 * 1024 * 1024) return showToast('Máximo 5MB', 'err');
@@ -3195,30 +3159,28 @@
       URL.revokeObjectURL(img.src);
       statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Subiendo...';
       let fileName = (mimeType === 'image/png') ? file.name.replace(/\.[^.]+$/, '.png') : file.name.replace(/\.[^.]+$/, '.jpg');
-      (async function() {
-        try {
-          const res = await callGas('uploadImage', { base64: dataUrl, fileName: fileName });
-          if (res.success) { document.getElementById('pf_img').value = res.url; updateImgPreview(res.url); statusDiv.innerHTML = '<span style="color:#34D399"><i class="fas fa-check-circle mr-1"></i> ¡Subida!</span>'; }
-          else { statusDiv.innerHTML = '<span style="color:#F87171"><i class="fas fa-times-circle mr-1"></i> ' + (res.message || 'Error') + '</span>'; showToast(res.message || 'Error al subir', 'err'); }
-        } catch(err) { statusDiv.innerHTML = '<span style="color:#F87171"><i class="fas fa-times-circle mr-1"></i> Error de conexión</span>'; }
-      })();
+      try {
+        const res = await callGas('uploadImage', { base64: dataUrl, fileName });
+        if (res.success) { document.getElementById('pf_img').value = res.url; updateImgPreview(res.url); statusDiv.innerHTML = '<span style="color:#34D399"><i class="fas fa-check-circle mr-1"></i> ¡Subida!</span>'; }
+        else { statusDiv.innerHTML = '<span style="color:#F87171"><i class="fas fa-times-circle mr-1"></i> ' + (res.message || 'Error') + '</span>'; showToast(res.message || 'Error al subir', 'err'); }
+      } catch(e) { statusDiv.innerHTML = '<span style="color:#F87171"><i class="fas fa-times-circle mr-1"></i> Error de conexión</span>'; }
     };
     img.onerror = function() { statusDiv.innerHTML = ''; showToast('Error al leer la imagen', 'err'); };
     img.src = URL.createObjectURL(file);
   }
 
-  function saveProdFromForm(e) {
+  async function saveProdFromForm(e) {
     e.preventDefault();
     let data = { ID: editingProductId, Nombre: document.getElementById('pf_name').value.trim(), PrecioCOP: parseFloat(document.getElementById('pf_price').value), Descripcion: document.getElementById('pf_desc').value.trim(), Categoria: document.getElementById('pf_cat').value.trim(), Descuento: parseFloat(document.getElementById('pf_disc').value) || 0, Imagen: document.getElementById('pf_img').value.trim(), Activo: document.getElementById('pf_act').checked ? 'true' : 'false', Destacado: document.getElementById('pf_dest').checked ? 'true' : 'false' };
     let btn = e.target.querySelector('button[type="submit"]'); let orig = btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Guardando...'; btn.disabled = true;
-    (async function() {
-      try {
-        const res = await callGas('saveProduct', { product: data, token: appState.adminToken });
-        btn.innerHTML = orig; btn.disabled = false;
-        if(res.success) { showToast(editingProductId ? 'Producto actualizado' : 'Producto creado', 'ok'); showAdminTab('prod'); }
-        else showToast(res.message || 'Error', 'err');
-      } catch(err) { btn.innerHTML = orig; btn.disabled = false; showToast('Error de conexión', 'err'); }
-    })();
+    try {
+      const res = await callGas('saveProducto', { product: data, token: appState.adminToken });
+      btn.innerHTML = orig; btn.disabled = false;
+      if(res.success) { showToast(editingProductId ? 'Producto actualizado' : 'Producto creado', 'ok'); showAdminTab('prod'); }
+      else showToast(res.message || 'Error', 'err');
+    } catch(e) {
+      btn.innerHTML = orig; btn.disabled = false; showToast('Error de conexión', 'err');
+    }
   }
 
   // ==========================================
@@ -3236,7 +3198,7 @@
   // ==========================================
   // FORMULARIO DE CONTACTO
   // ==========================================
-  function submitContact(e) {
+  async function submitContact(e) {
     e.preventDefault(); let btn = document.getElementById('contactSubmitBtn'); let form = document.getElementById('contactForm'); let success = document.getElementById('contactSuccess');
     let data = { firstName: document.getElementById('ctFirstName').value.trim(), lastName: document.getElementById('ctLastName').value.trim(), phone: document.getElementById('ctPhone').value.trim(), email: document.getElementById('ctEmail').value.trim(), reason: document.getElementById('ctReason').value.trim(), sessionId: appState.chatSession };
     if (!data.firstName || !data.lastName) return showToast('Ingresa nombres y apellidos', 'err');
@@ -3244,14 +3206,14 @@
     if (!data.email || !data.email.includes('@')) return showToast('Ingresa un correo válido', 'err');
     if (!data.reason || data.reason.length < 10) return showToast('Cuéntanos más sobre tu consulta', 'err');
     btn.classList.add('loading');
-    (async function() {
-      try {
-        const res = await callGas('sendContact', { data: data });
-        btn.classList.remove('loading');
-        if (res && res.success) { form.style.display = 'none'; success.classList.add('show'); showToast('Mensaje enviado correctamente', 'ok'); }
-        else showToast(res && res.message ? res.message : 'Error', 'err');
-      } catch(err) { btn.classList.remove('loading'); showToast('Error de conexión', 'err'); }
-    })();
+    try {
+      const res = await callGas('saveContactMessage', { data });
+      btn.classList.remove('loading');
+      if (res && res.success) { form.style.display = 'none'; success.classList.add('show'); showToast('Mensaje enviado correctamente', 'ok'); }
+      else showToast(res && res.message ? res.message : 'Error', 'err');
+    } catch(e) {
+      btn.classList.remove('loading'); showToast('Error de conexión', 'err');
+    }
   }
   function resetContactForm() { let f = document.getElementById('contactForm'); let s = document.getElementById('contactSuccess'); f.reset(); f.style.display = 'block'; s.classList.remove('show'); }
 
@@ -3271,7 +3233,7 @@
     if (!chatState.open) { clearInterval(chatState.pollInterval); clearInterval(chatState.advisorPollInterval); }
   }
 
-  function sendChatMsg() {
+  async function sendChatMsg() {
     let input = document.getElementById('chatInput'); let msg = input.value.trim(); if (!msg) return; input.value = ''; input.style.height = 'auto';
     appendChatBubble('user', escapeHtml(msg));
     if (chatState.mode === 'waiting') return;
@@ -3279,13 +3241,13 @@
     let lowerMsg = msg.toLowerCase().trim();
     if (lowerMsg === 'asesor' || lowerMsg === 'asesora' || lowerMsg === 'agente' || lowerMsg === 'humano' || lowerMsg === 'persona') { requestAdvisor(); return; }
     showTyping(true);
-    (async function() {
-      try {
-        const res = await callGas('getSmartBotReply', { sessionId: chatState.sessionId, message: msg, productsJson: JSON.stringify(appState.products), configJson: JSON.stringify(appState.config) });
-        showTyping(false);
-        if (res && res.reply) appendChatBubble('bot', res.reply);
-      } catch(err) { showTyping(false); appendChatBubble('bot', 'Error técnico. Escribe <strong>asesor</strong>.'); }
-    })();
+    try {
+      const res = await callGas('getSmartBotReply', { sessionId: chatState.sessionId, msg, productsJson: JSON.stringify(appState.products), configJson: JSON.stringify(appState.config) });
+      showTyping(false);
+      if (res && res.reply) appendChatBubble('bot', res.reply);
+    } catch(e) {
+      showTyping(false); appendChatBubble('bot', 'Error técnico. Escribe <strong>asesor</strong>.');
+    }
   }
 
   function appendChatBubble(type, html) {
@@ -3311,53 +3273,42 @@
   // ==========================================
   function requestAdvisor() { if (chatState.mode !== 'bot') return; chatState.mode = 'auth-phone'; appendChatBubble('bot', `<div style="text-align:center"><div style="font-size:1.5rem;margin-bottom:8px">📱</div><p style="margin:0 0 12px;font-size:.88rem">Para conectarte con un asesor, ingresa tu número de celular.</p><div class="chat-inline-form"><label>Número de celular</label><input type="tel" class="chat-inline-input" id="chatPhoneInput" placeholder="+57 300 1234567" onkeydown="if(event.key==='Enter'){event.preventDefault();submitAdvisorPhone()}"><button class="chat-inline-btn" onclick="submitAdvisorPhone()"><i class="fas fa-arrow-right"></i> Continuar</button></div></div>`); setTimeout(() => { let el = document.getElementById('chatPhoneInput'); if(el) el.focus(); }, 400); }
 
-  function submitAdvisorPhone() {
+  async function submitAdvisorPhone() {
     let input = document.getElementById('chatPhoneInput'); if (!input) return; let phone = input.value.trim();
     if (!phone || phone.replace(/\D/g, '').length < 7) { input.style.borderColor = 'var(--danger)'; input.focus(); return; }
     advisorFlowData.phone = phone; let btn = input.parentElement.querySelector('.chat-inline-btn'); if(btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando...'; } input.disabled = true;
-    (async function() {
-      try {
-        const res = await callGas('validateChatUser', { phone: advisorFlowData.phone });
-        if (res && res.isActiveLive && res.liveSessionId) {
-          chatState.sessionId = res.liveSessionId;
-          chatState.mode = 'advisor';
-          document.getElementById('chatHead').className = 'chat-head chat-head-active';
-          document.getElementById('chatHeadName').innerText = 'Conversando con ' + (res.advisorName || 'Asesor');
-          document.getElementById('chatWaitingBanner').classList.remove('show');
-          let history = await callGas('getChatHistory', { sessionId: chatState.sessionId });
-          document.getElementById('chatMessages').innerHTML = '';
-          if (history && history.length > 0) history.forEach(m => appendChatBubble(m.isAdmin ? 'advisor' : 'user', m.msg));
-          startMessagePolling();
-          return;
-        }
-        if (res && res.found) { advisorFlowData.name = res.name;
-          if (res.hasHistory) { loadFullChatHistory(phone, res.name); }
-          else { appendChatBubble('bot', `¡Hola de nuevo, <strong>${escapeHtml(res.name)}</strong>! 👋 Te estoy conectando con un asesor...`); finalizeAdvisorConnection(res.name); }
-        } else { showAdvisorNameForm(); }
-      } catch(err) { showAdvisorNameForm(); }
-    })();
+    try {
+      const res = await callGas('validateChatUser', { phone });
+      if (res.found) { advisorFlowData.name = res.name;
+        if (res.isActiveLive) { reconnectToActiveChat(res.liveSessionId, res.advisorName); }
+        else if (res.hasHistory) { loadFullChatHistory(phone, res.name); }
+        else { appendChatBubble('bot', `¡Hola de nuevo, <strong>${escapeHtml(res.name)}</strong>! 👋 Te estoy conectando con un asesor...`); finalizeAdvisorConnection(res.name); }
+      } else { showAdvisorNameForm(); }
+    } catch(e) { showAdvisorNameForm(); }
   }
 
   async function reconnectToActiveChat(liveSessionId, advisorName) {
     showTyping(true); appendChatBubble('bot', `<em style="font-size:.8rem;color:var(--muted)">⏳ Reconectando...</em>`);
     chatState.sessionId = liveSessionId;
     try {
-      let history = await callGas('getChatHistory', { sessionId: liveSessionId });
+      const history = await callGas('getChatHistory', { sessionId: liveSessionId });
       showTyping(false); let msgs = document.getElementById('chatMessages'); if (msgs.lastChild) msgs.removeChild(msgs.lastChild);
       if (history.length > 0) { let div = document.createElement('div'); div.className = 'chat-history-divider'; div.innerHTML = `<span>Continuación</span>`; msgs.appendChild(div); history.forEach(m => { let type = m.isAdmin ? 'advisor' : 'user'; let icon = m.isAdmin ? 'fa-headset' : 'fa-user'; let time = new Date(m.time).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }); let d = document.createElement('div'); d.className = 'chat-msg ' + type; d.innerHTML = `<div class="msg-avatar"><i class="fas ${icon}"></i></div><div><div class="msg-bubble">${escapeHtml(m.msg)}</div><div class="msg-time">${time}</div></div>`; msgs.appendChild(d); }); msgs.scrollTop = msgs.scrollHeight; }
       chatState.mode = 'advisor'; document.getElementById('chatHead').className = 'chat-head chat-head-advisor'; document.getElementById('chatHeadIcon').innerHTML = '<i class="fas fa-headset"></i>'; document.getElementById('chatHeadName').innerText = advisorName || 'Asesor'; document.getElementById('chatHeadStatus').innerHTML = '<span class="dot online"></span> En línea'; document.getElementById('chatWaitingBanner').classList.remove('show'); document.getElementById('chatInput').placeholder = 'Escribe tu mensaje al asesor...'; appendChatBubble('advisor', '¡Hola! 👋 Me he reconectado. Continuemos.'); chatState.lastMsgTime = new Date().toISOString(); startMessagePolling();
-    } catch(err) { showTyping(false); chatState.mode = 'advisor'; document.getElementById('chatHead').className = 'chat-head chat-head-advisor'; document.getElementById('chatHeadName').innerText = advisorName; document.getElementById('chatWaitingBanner').classList.remove('show'); chatState.lastMsgTime = new Date().toISOString(); startMessagePolling(); }
+    } catch(e) {
+      showTyping(false); chatState.mode = 'advisor'; document.getElementById('chatHead').className = 'chat-head chat-head-advisor'; document.getElementById('chatHeadName').innerText = advisorName; document.getElementById('chatWaitingBanner').classList.remove('show'); chatState.lastMsgTime = new Date().toISOString(); startMessagePolling();
+    }
   }
 
   async function loadFullChatHistory(phone, userName) {
     showTyping(true); appendChatBubble('bot', `<em style="font-size:.8rem;color:var(--muted)">⏳ Cargando historial...</em>`);
     try {
-      let history = await callGas('getFullChatHistoryByPhone', { phone: phone });
+      const history = await callGas('getFullChatHistoryByPhone', { phone });
       showTyping(false); let msgs = document.getElementById('chatMessages'); if (msgs.lastChild) msgs.removeChild(msgs.lastChild);
       if (history.length > 0) { let div = document.createElement('div'); div.className = 'chat-history-divider'; div.innerHTML = `<span>Historial anterior</span>`; msgs.appendChild(div); history.forEach(m => { let type = m.isAdmin ? 'advisor' : 'user'; let icon = m.isAdmin ? 'fa-headset' : 'fa-user'; let time = new Date(m.time).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }); let date = new Date(m.time).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }); let d = document.createElement('div'); d.className = 'chat-msg ' + type; d.innerHTML = `<div class="msg-avatar"><i class="fas ${icon}"></i></div><div><div class="msg-bubble">${escapeHtml(m.msg)}</div><div class="msg-time">${date} - ${time}</div></div>`; msgs.appendChild(d); }); msgs.scrollTop = msgs.scrollHeight; appendChatBubble('bot', `¡Bienvenido de vuelta, <strong>${escapeHtml(userName)}</strong>! 👋 He cargado tu historial. Conectando...`); }
       else { appendChatBubble('bot', `¡Hola de nuevo, <strong>${escapeHtml(userName)}</strong>! 👋 Conectando...`); }
       finalizeAdvisorConnection(userName);
-    } catch(err) { showTyping(false); appendChatBubble('bot', 'No pude cargar historial, pero te conectaré.'); finalizeAdvisorConnection(userName); }
+    } catch(e) { showTyping(false); appendChatBubble('bot', 'No pude cargar historial, pero te conectaré.'); finalizeAdvisorConnection(userName); }
   }
 
   function showAdvisorNameForm() { appendChatBubble('bot', `<div style="text-align:center"><div style="font-size:1.5rem;margin-bottom:8px">🆕</div><p style="margin:0 0 12px;font-size:.88rem">¿Cómo te llamas?</p><div class="chat-inline-form"><label>Tu nombre</label><input type="text" class="chat-inline-input" id="chatNameInput" placeholder="Ej: María José" onkeydown="if(event.key==='Enter'){event.preventDefault();submitAdvisorName()}"><button class="chat-inline-btn" onclick="submitAdvisorName()"><i class="fas fa-comment-dots"></i> Iniciar Chat</button></div></div>`); setTimeout(() => { let el = document.getElementById('chatNameInput'); if(el) el.focus(); }, 400); }
@@ -3366,28 +3317,31 @@
   async function finalizeAdvisorConnection(userName) {
     let newLiveSessionId = 'LIVE-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4); chatState.sessionId = newLiveSessionId;
     try {
-      await callGas('registerChatUser', { phone: advisorFlowData.phone, name: userName, sessionId: newLiveSessionId });
+      await callGas('registerOrUpdateChatUser', { phone: advisorFlowData.phone, name: userName, sessionId: newLiveSessionId });
       chatState.mode = 'waiting'; document.getElementById('chatHead').className = 'chat-head chat-head-waiting'; document.getElementById('chatHeadIcon').innerHTML = '<i class="fas fa-clock"></i>'; document.getElementById('chatHeadName').innerText = userName; document.getElementById('chatHeadStatus').innerHTML = '<span class="dot waiting"></span> Esperando asesor'; document.getElementById('chatWaitingBanner').classList.add('show');
-      await callGas('requestAdvisor', { sessionId: newLiveSessionId, userName: userName });
-      startAdvisorPolling();
-    } catch(err) {
+      try {
+        await callGas('requestAdvisor', { sessionId: newLiveSessionId, userName });
+        startAdvisorPolling();
+      } catch(e) {
+        appendChatBubble('bot', 'Error al conectar.'); resetToBotMode();
+      }
+    } catch(e) {
       chatState.mode = 'waiting'; document.getElementById('chatHead').className = 'chat-head chat-head-waiting'; document.getElementById('chatHeadName').innerText = userName; document.getElementById('chatWaitingBanner').classList.add('show');
-      try { await callGas('requestAdvisor', { sessionId: newLiveSessionId, userName: userName }); } catch(e2) {}
-      startAdvisorPolling();
+      try { await callGas('requestAdvisor', { sessionId: newLiveSessionId, userName }); } catch(e2) {}
     }
   }
 
-  function startAdvisorPolling() { clearInterval(chatState.advisorPollInterval); chatState.advisorPollInterval = setInterval(async () => { if (chatState.mode !== 'waiting') { clearInterval(chatState.advisorPollInterval); return; } try { const status = await callGas('getChatSessionStatus', { sessionId: chatState.sessionId }); if (status && status.status === 'active') connectToAdvisor(status.advisor); } catch(err) {} }, 3000); }
+  function startAdvisorPolling() { clearInterval(chatState.advisorPollInterval); chatState.advisorPollInterval = setInterval(async () => { if (chatState.mode !== 'waiting') { clearInterval(chatState.advisorPollInterval); return; } try { const status = await callGas('getChatSessionStatus', { sessionId: chatState.sessionId }); if (status && status.status === 'active') connectToAdvisor(status.advisor); } catch(e) {} }, 3000); }
   function connectToAdvisor(advisorName) { chatState.mode = 'advisor'; clearInterval(chatState.advisorPollInterval); document.getElementById('chatHead').className = 'chat-head chat-head-advisor'; document.getElementById('chatHeadIcon').innerHTML = '<i class="fas fa-headset"></i>'; document.getElementById('chatHeadName').innerText = advisorName || 'Asesor'; document.getElementById('chatHeadStatus').innerHTML = '<span class="dot online"></span> En línea'; document.getElementById('chatWaitingBanner').classList.remove('show'); appendChatBubble('advisor', '¡Hola! 👋 Soy ' + (advisorName || 'tu asesor') + '. ¿En qué puedo ayudarte?'); document.getElementById('chatInput').placeholder = 'Escribe tu mensaje al asesor...'; chatState.lastMsgTime = new Date().toISOString(); startMessagePolling(); }
-  function startMessagePolling() { clearInterval(chatState.pollInterval); chatState.pollInterval = setInterval(async () => { if (!chatState.open || chatState.mode !== 'advisor') { clearInterval(chatState.pollInterval); return; } try { const msgs = await callGas('getChatMessages', { sinceDate: chatState.lastMsgTime, sessionId: chatState.sessionId }); if (msgs && msgs.length > 0) { msgs.forEach(m => { let mt = new Date(m.time).getTime(); let lt = chatState.lastMsgTime ? new Date(chatState.lastMsgTime).getTime() : 0; if (mt > lt && m.isAdmin) appendChatBubble('advisor', escapeHtml(m.msg)); }); if (msgs.length > 0) chatState.lastMsgTime = msgs[msgs.length - 1].time; } } catch(err) {} }, 2500); }
-  async function sendAdvisorMessage(msg, isAdmin) { showTyping(true); try { const res = await callGas('sendChat', { sessionId: chatState.sessionId, msg: msg, isAdmin: isAdmin === true }); showTyping(false); if (!res || !res.success) appendChatBubble('advisor', 'No pude enviar.'); } catch(err) { showTyping(false); appendChatBubble('advisor', 'Error de conexión.'); } }
+  function startMessagePolling() { clearInterval(chatState.pollInterval); chatState.pollInterval = setInterval(async () => { if (!chatState.open || chatState.mode !== 'advisor') { clearInterval(chatState.pollInterval); return; } try { const msgs = await callGas('getChatMessages', { sinceDate: chatState.lastMsgTime, sessionId: chatState.sessionId }); if (msgs && msgs.length > 0) { msgs.forEach(m => { let mt = new Date(m.time).getTime(); let lt = chatState.lastMsgTime ? new Date(chatState.lastMsgTime).getTime() : 0; if (mt > lt && m.isAdmin) appendChatBubble('advisor', escapeHtml(m.msg)); }); if (msgs.length > 0) chatState.lastMsgTime = msgs[msgs.length - 1].time; } } catch(e) {} }, 2500); }
+  async function sendAdvisorMessage(msg, isAdmin) { showTyping(true); try { const res = await callGas('sendAdvisorMessage', { sessionId: chatState.sessionId, msg, isAdmin: isAdmin === true }); showTyping(false); if (!res || !res.success) appendChatBubble('advisor', 'No pude enviar.'); } catch(e) { showTyping(false); appendChatBubble('advisor', 'Error de conexión.'); } }
 
   // ==========================================
   // ADMIN: CENTRO DE ASESORÍA (CHAT EN VIVO)
   // ==========================================
   async function refreshAdvisorQueue() {
     try {
-      const data = await callGas('getAdvisorQueue');
+      const data = await callGas('getAdvisorQueue', {});
       let wList = document.getElementById('advisorWaitingList'); if (!wList) return;
       if (data.waiting.length === 0) wList.innerHTML = '<p class="text-sm" style="color:var(--adm-muted)">No hay usuarios esperando</p>';
       else wList.innerHTML = data.waiting.map(w => `<div class="advisor-queue-item" onclick="acceptChat('${w.sessionId}')"><div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background:rgba(251,191,36,.12);color:#FBBF24"><i class="fas fa-user-clock"></i></div><div class="flex-1 min-w-0"><div class="text-sm font-semibold" style="color:#fff">${escapeHtml(w.name)}</div><div class="text-xs" style="color:var(--adm-muted)">${getTimeAgo(w.time)}</div></div><span class="advisor-badge waiting">Esperando</span></div>`).join('');
@@ -3395,10 +3349,10 @@
       if (data.active.length === 0) aList.innerHTML = '<p class="text-sm" style="color:var(--adm-muted)">No hay chats activos</p>';
       else aList.innerHTML = data.active.map(a => `<div class="advisor-queue-item" style="${adminActiveChatSession === a.sessionId ? 'border-color:var(--adm-accent);background:rgba(45,212,191,.08)' : ''}" onclick="openAdvisorChat('${a.sessionId}')"><div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background:rgba(52,211,153,.12);color:#34D399"><i class="fas fa-headset"></i></div><div class="flex-1 min-w-0"><div class="text-sm font-semibold" style="color:#fff">${escapeHtml(a.name)}</div><div class="text-xs" style="color:var(--adm-muted)">Con ${escapeHtml(a.advisor)} · ${getTimeAgo(a.time)}</div></div><span class="advisor-badge active">Activo</span></div>`).join('');
       setTimeout(refreshAdvisorQueue, 5000);
-    } catch(err) {}
+    } catch(e) {}
   }
 
-  async function acceptChat(sessionId) { if (!confirm('¿Aceptar este chat?')) return; try { const res = await callGas('acceptAdvisorChat', { sessionId: sessionId, adminUser: 'Asesor' }); if (res.success) { showToast('Chat aceptado', 'ok'); openAdvisorChat(sessionId); refreshAdvisorQueue(); } else showToast(res.message || 'Error', 'err'); } catch(err) { showToast('Error de conexión', 'err'); } }
+  async function acceptChat(sessionId) { if (!confirm('¿Aceptar este chat?')) return; try { const res = await callGas('acceptAdvisorChat', { sessionId, advisorName: 'Asesor' }); if (res.success) { showToast('Chat aceptado', 'ok'); openAdvisorChat(sessionId); refreshAdvisorQueue(); } else showToast(res.message || 'Error', 'err'); } catch(e) { showToast('Error', 'err'); } }
 
   function openAdvisorChat(sessionId) {
     adminActiveChatSession = sessionId; adminLastMsgTime = null; lastRenderedMsgTime = null; clearInterval(adminChatPollInterval);
@@ -3409,41 +3363,42 @@
 
   async function loadAdminChatMessages(sessionId) {
     try {
-      const msgs = await callGas('getChatMessages', { sinceDate: adminLastMsgTime, sessionId: sessionId });
+      const msgs = await callGas('getChatMessages', { sinceDate: adminLastMsgTime, sessionId });
       if (!msgs || msgs.length === 0) return; let container = document.getElementById('adminChatMsgs'); if (!container) { clearInterval(adminChatPollInterval); return; }
       if (container.innerText.includes('Cargando mensajes...')) container.innerHTML = '';
       let newHtml = ''; let lt = lastRenderedMsgTime ? new Date(lastRenderedMsgTime).getTime() : 0;
       msgs.forEach(m => { let mt = new Date(m.time).getTime(); if (mt > lt) { let time = new Date(m.time).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }); let isA = m.isAdmin; newHtml += `<div style="display:flex;gap:8px;max-width:85%;${isA ? 'align-self:flex-end;flex-direction:row-reverse;margin-left:auto' : ''}"><div><div style="padding:10px 14px;border-radius:14px;font-size:.84rem;line-height:1.6;${isA ? 'background:var(--adm-accent);color:#041F1A;border-bottom-right-radius:4px' : 'background:rgba(255,255,255,.05);color:var(--adm-text);border:1px solid var(--adm-border);border-bottom-left-radius:4px'}">${escapeHtml(m.msg)}</div><div style="font-size:.65rem;color:var(--adm-muted);margin-top:3px;${isA ? 'text-align:right' : ''}">${isA ? 'Tú' : m.user} · ${time}</div></div></div>`; lastRenderedMsgTime = m.time; } });
       if (newHtml) { container.insertAdjacentHTML('beforeend', newHtml); container.scrollTop = container.scrollHeight; }
       adminLastMsgTime = lastRenderedMsgTime;
-    } catch(err) {}
+    } catch(e) {}
   }
 
-  async function sendAdminChatMsg() {
+  function sendAdminChatMsg() {
     let input = document.getElementById('adminChatInput'); if (!input) return; let msg = input.value.trim(); if (!msg || !adminActiveChatSession) return; input.value = ''; input.focus();
     let container = document.getElementById('adminChatMsgs'); if (container) { let time = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }); let div = document.createElement('div'); div.style.cssText = 'display:flex;gap:8px;max-width:85%;align-self:flex-end;flex-direction:row-reverse;margin-left:auto'; div.innerHTML = `<div><div style="padding:10px 14px;border-radius:14px;font-size:.84rem;line-height:1.6;background:var(--adm-accent);color:#041F1A;border-bottom-right-radius:4px">${escapeHtml(msg)}</div><div style="font-size:.65rem;color:var(--adm-muted);margin-top:3px;text-align:right">Tú · ${time}</div></div>`; container.appendChild(div); container.scrollTop = container.scrollHeight; }
-    callGas('sendChat', { sessionId: adminActiveChatSession, msg: msg, isAdmin: true });
+    callGas('sendAdvisorMessage', { sessionId: adminActiveChatSession, msg, isAdmin: true }).catch(()=>{});
   }
 
   async function endAdminChat(sessionId) {
     if (!confirm('¿Finalizar este chat?')) return; clearInterval(adminChatPollInterval); adminActiveChatSession = null;
-    try { await callGas('endAdvisorChat', { sessionId: sessionId }); showToast('Chat finalizado', 'ok'); refreshAdvisorQueue(); let area = document.getElementById('advisorChatArea'); if (area) area.style.display = 'none'; } catch(err) { showToast('Error', 'err'); }
+    try {
+      await callGas('endAdvisorChat', { sessionId });
+      showToast('Chat finalizado', 'ok'); refreshAdvisorQueue(); let area = document.getElementById('advisorChatArea'); if (area) area.style.display = 'none';
+    } catch(e) { showToast('Error', 'err'); }
   }
 
   // ==========================================
   // ADMIN: MENSAJES DE CONTACTO
   // ==========================================
-  function loadContactMessages() {
-    (async function() {
-      try {
-        const msgs = await callGas('getContactMessages');
-        let c = document.getElementById('contactMsgsContainer'); if (!msgs || msgs.length === 0) { c.innerHTML = '<div class="adm-card text-center py-10" style="color:var(--adm-muted)"><i class="fas fa-inbox text-3xl mb-3 block" style="opacity:.3"></i>No hay mensajes aún</div>'; return; }
-        let h = '<div style="display:grid;gap:12px">';
-        msgs.forEach(m => { let isM = m.Estado === 'Gestionado'; let short = m.Motivo.length > 100 ? m.Motivo.substring(0, 100) + '...' : m.Motivo; let bg = isM ? 'rgba(255,255,255,.02)' : 'rgba(45,212,191,.03)'; let bc = isM ? 'var(--adm-border)' : 'var(--adm-border)'; let hb = isM ? 'var(--adm-border)' : 'var(--adm-accent)'; let ib = isM ? 'rgba(255,255,255,.05)' : 'rgba(45,212,191,.1)'; let ic = isM ? 'var(--adm-muted)' : 'var(--adm-accent)'; let badge = isM ? '<span style="color:var(--adm-muted);background:rgba(255,255,255,.05);padding:2px 8px;border-radius:10px;font-size:.7rem;font-weight:700">Gestionado</span>' : '<span style="color:var(--adm-accent);font-weight:700">NUEVO</span>';
-          h += `<div class="contact-msg-card" style="background:${bg};border-color:${bc}" onmouseenter="this.style.borderColor='${hb}'" onmouseleave="this.style.borderColor='${bc}'" onclick="${isM ? `openReadonlyModal('${escapeHtml(m.Nombre).replace(/'/g, "\\'")}', '${escapeHtml(m.Motivo).replace(/'/g, "\\'")}', '${escapeHtml(m.Respuesta || '').replace(/'/g, "\\'")}')` : `openReplyModal(${m._row}, '${escapeHtml(m.Nombre).replace(/'/g, "\\'")}', '${escapeHtml(m.Email).replace(/'/g, "\\'")}', '${escapeHtml(m.Motivo).replace(/'/g, "\\'")}')`}"><div style="flex-shrink:0;width:40px;height:40px;border-radius:10px;background:${ib};display:flex;align-items:center;justify-content:center;color:${ic}"><i class="fas ${isM ? 'fa-check-circle' : 'fa-envelope'}"></i></div><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span class="text-sm font-semibold" style="color:#fff">${escapeHtml(m.Nombre)}</span><span class="text-xs" style="color:var(--adm-muted)">${getTimeAgo(m.Timestamp)}</span></div><p class="text-xs lc-1" style="color:var(--adm-muted);margin:0">${short}</p><div style="display:flex;gap:8px;margin-top:8px;font-size:.7rem;color:var(--adm-muted)"><span><i class="fas fa-phone mr-1"></i>${escapeHtml(m.Celular)}</span>${badge}</div></div></div>`; });
-        h += '</div>'; c.innerHTML = h;
-      } catch(err) { showToast('Error al cargar mensajes', 'err'); }
-    })();
+  async function loadContactMessages() {
+    try {
+      const msgs = await callGas('getContactMessages', {});
+      let c = document.getElementById('contactMsgsContainer'); if (!msgs || msgs.length === 0) { c.innerHTML = '<div class="adm-card text-center py-10" style="color:var(--adm-muted)"><i class="fas fa-inbox text-3xl mb-3 block" style="opacity:.3"></i>No hay mensajes aún</div>'; return; }
+      let h = '<div style="display:grid;gap:12px">';
+      msgs.forEach(m => { let isM = m.Estado === 'Gestionado'; let short = m.Motivo.length > 100 ? m.Motivo.substring(0, 100) + '...' : m.Motivo; let bg = isM ? 'rgba(255,255,255,.02)' : 'rgba(45,212,191,.03)'; let bc = isM ? 'var(--adm-border)' : 'var(--adm-border)'; let hb = isM ? 'var(--adm-border)' : 'var(--adm-accent)'; let ib = isM ? 'rgba(255,255,255,.05)' : 'rgba(45,212,191,.1)'; let ic = isM ? 'var(--adm-muted)' : 'var(--adm-accent)'; let badge = isM ? '<span style="color:var(--adm-muted);background:rgba(255,255,255,.05);padding:2px 8px;border-radius:10px;font-size:.7rem;font-weight:700">Gestionado</span>' : '<span style="color:var(--adm-accent);font-weight:700">NUEVO</span>';
+        h += `<div class="contact-msg-card" style="background:${bg};border-color:${bc}" onmouseenter="this.style.borderColor='${hb}'" onmouseleave="this.style.borderColor='${bc}'" onclick="${isM ? `openReadonlyModal('${escapeHtml(m.Nombre).replace(/'/g, "\\'")}', '${escapeHtml(m.Motivo).replace(/'/g, "\\'")}', '${escapeHtml(m.Respuesta || '').replace(/'/g, "\\'")}')` : `openReplyModal(${m._row}, '${escapeHtml(m.Nombre).replace(/'/g, "\\'")}', '${escapeHtml(m.Email).replace(/'/g, "\\'")}', '${escapeHtml(m.Motivo).replace(/'/g, "\\'")}')`}"><div style="flex-shrink:0;width:40px;height:40px;border-radius:10px;background:${ib};display:flex;align-items:center;justify-content:center;color:${ic}"><i class="fas ${isM ? 'fa-check-circle' : 'fa-envelope'}"></i></div><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span class="text-sm font-semibold" style="color:#fff">${escapeHtml(m.Nombre)}</span><span class="text-xs" style="color:var(--adm-muted)">${getTimeAgo(m.Timestamp)}</span></div><p class="text-xs lc-1" style="color:var(--adm-muted);margin:0">${short}</p><div style="display:flex;gap:8px;margin-top:8px;font-size:.7rem;color:var(--adm-muted)"><span><i class="fas fa-phone mr-1"></i>${escapeHtml(m.Celular)}</span>${badge}</div></div></div>`; });
+      h += '</div>'; c.innerHTML = h;
+    } catch(e) {}
   }
 
   function openReadonlyModal(name, message, reply) {
@@ -3460,17 +3415,17 @@
 
   function closeReplyModal() { let o = document.getElementById('replyOverlay'); if (o) o.remove(); }
 
-  function sendContactReply(row, email) {
+  async function sendContactReply(row, email) {
     let text = document.getElementById('contactReplyText').value.trim(); if (!text) return showToast('Escribe una respuesta', 'err');
     let btn = document.getElementById('btnSendReply'); btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Enviando...';
-    (async function() {
-      try {
-        const res = await callGas('replyContact', { row, replyText: text, token: appState.adminToken });
-        closeReplyModal();
-        if (res.success) { showToast(res.message, 'ok'); loadContactMessages(); }
-        else showToast(res.message || 'Error', 'err');
-      } catch(err) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Enviar Respuesta'; showToast('Error de conexión', 'err'); }
-    })();
+    try {
+      const res = await callGas('replyContactMessage', { row, replyText: text, token: appState.adminToken });
+      closeReplyModal();
+      if (res.success) { showToast(res.message, 'ok'); loadContactMessages(); }
+      else showToast(res.message || 'Error', 'err');
+    } catch(e) {
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Enviar Respuesta'; showToast('Error de conexión', 'err');
+    }
   }
 
   // ==========================================
@@ -3494,28 +3449,24 @@
   // ==========================================
   // NEWSLETTER
   // ==========================================
-  function subscribeNewsletter() {
+  async function subscribeNewsletter() {
     let input = document.getElementById('newsEmail');
     let email = input ? input.value.trim() : '';
     if (!email || email.indexOf('@') === -1 || email.indexOf('.') === -1) return showToast('Ingresa un email válido', 'err');
     let btn = document.querySelector('.newsletter-btn');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Enviando...'; }
-    (async function() {
-      try {
-        const res = await callGas('saveSubscriber', { email: email });
-        if (btn) { btn.disabled = false; btn.innerText = 'Suscribirme'; }
-        let form = document.getElementById('newsletterForm');
-        let success = document.getElementById('newsletterSuccess');
-        if (form) form.classList.add('hidden');
-        if (success) success.classList.add('show');
-      } catch(err) {
-        if (btn) { btn.disabled = false; btn.innerText = 'Suscribirme'; }
-        let form = document.getElementById('newsletterForm');
-        let success = document.getElementById('newsletterSuccess');
-        if (form) form.classList.add('hidden');
-        if (success) success.classList.add('show');
-      }
-    })();
+    try {
+      await callGas('saveSubscriber', { email });
+      let form = document.getElementById('newsletterForm');
+      let success = document.getElementById('newsletterSuccess');
+      if (form) form.classList.add('hidden');
+      if (success) success.classList.add('show');
+    } catch(e) {
+      let form = document.getElementById('newsletterForm');
+      let success = document.getElementById('newsletterSuccess');
+      if (form) form.classList.add('hidden');
+      if (success) success.classList.add('show');
+    }
   }
 
   function showToast(msg, type='info') { let box = document.getElementById('toastBox'); let t = document.createElement('div'); t.className = `toast toast-${type}`; t.innerText = msg; box.appendChild(t); setTimeout(() => t.remove(), 4000); }
@@ -3851,6 +3802,10 @@ function initDashboardCharts(data) {
   }
   
 }  
+</script>
+</body>
+</html>
+
 </script>
 </body>
 </html>
