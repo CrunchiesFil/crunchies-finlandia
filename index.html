@@ -3140,7 +3140,7 @@
     let statusDiv = document.getElementById('imgUploadStatus');
     statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Ajustando imagen...';
     let img = new Image();
-    img.onload = function() {
+    img.onload = async function() {
       let MAX_W = 800, MAX_H = 800;
       let w = img.width, h = img.height;
       if (w > MAX_W || h > MAX_H) {
