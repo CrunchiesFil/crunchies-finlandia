@@ -6,6 +6,8 @@
   <title>Crunchies Finlandia — Cucharas Comestibles</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="icon" type="image/png" href="https://i.imgur.com/xSO6E8Z.png">
+  <link rel="apple-touch-icon" href="https://i.imgur.com/xSO6E8Z.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script>
@@ -3395,6 +3397,7 @@
   function sendAdminChatMsg() {
     let input = document.getElementById('adminChatInput'); if (!input) return; let msg = input.value.trim(); if (!msg || !adminActiveChatSession) return; input.value = ''; input.focus();
     let container = document.getElementById('adminChatMsgs'); if (container) { let time = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }); let div = document.createElement('div'); div.style.cssText = 'display:flex;gap:8px;max-width:85%;align-self:flex-end;flex-direction:row-reverse;margin-left:auto'; div.innerHTML = `<div><div style="padding:10px 14px;border-radius:14px;font-size:.84rem;line-height:1.6;background:var(--adm-accent);color:#041F1A;border-bottom-right-radius:4px">${escapeHtml(msg)}</div><div style="font-size:.65rem;color:var(--adm-muted);margin-top:3px;text-align:right">Tú · ${time}</div></div>`; container.appendChild(div); container.scrollTop = container.scrollHeight; }
+    let now = new Date().toISOString(); adminLastMsgTime = now; lastRenderedMsgTime = now;
     callGas('sendAdvisorMessage', { sessionId: adminActiveChatSession, msg, isAdmin: true }).catch(()=>{});
   }
 
