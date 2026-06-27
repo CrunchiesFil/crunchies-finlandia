@@ -3160,9 +3160,28 @@
       statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Subiendo...';
       let fileName = (mimeType === 'image/png') ? file.name.replace(/\.[^.]+$/, '.png') : file.name.replace(/\.[^.]+$/, '.jpg');
       try {
-        const res = await callGas('uploadImage', { base64: dataUrl, fileName });
-        if (res.success) { document.getElementById('pf_img').value = res.url; updateImgPreview(res.url); statusDiv.innerHTML = '<span style="color:#34D399"><i class="fas fa-check-circle mr-1"></i> ¡Subida!</span>'; }
-        else { statusDiv.innerHTML = '<span style="color:#F87171"><i class="fas fa-times-circle mr-1"></i> ' + (res.message || 'Error') + '</span>'; showToast(res.message || 'Error al subir', 'err'); }
+        let ghToken = appState.config.GithubToken;
+        let ghRepo = appState.config.GithubRepo;
+        if (!ghToken || !ghRepo) { statusDiv.innerHTML = ''; showToast('Falta configuración de GitHub', 'err'); return; }
+        let cleanBase64 = dataUrl;
+        if (dataUrl.indexOf(',') !== -1) cleanBase64 = dataUrl.split(',')[1];
+        let path = 'images/' + fileName;
+        let apiUrl = 'https://api.github.com/repos/' + ghRepo + '/contents/' + path;
+        let sha = null;
+        try { let check = await fetch(apiUrl); if (check.ok) { let cd = await check.json(); sha = cd.sha; } } catch(e) {}
+        let body = { message: 'Upload ' + fileName, content: cleanBase64 };
+        if (sha) body.sha = sha;
+        let upRes = await fetch(apiUrl, { method: 'PUT', headers: { 'Authorization': 'token ' + ghToken, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        let upData = await upRes.json();
+        if (upData.content && upData.content.download_url) {
+          let imgUrl = upData.content.download_url;
+          document.getElementById('pf_img').value = imgUrl;
+          updateImgPreview(imgUrl);
+          statusDiv.innerHTML = '<span style="color:#34D399"><i class="fas fa-check-circle mr-1"></i> ¡Subida!</span>';
+        } else {
+          statusDiv.innerHTML = '<span style="color:#F87171"><i class="fas fa-times-circle mr-1"></i> ' + (upData.message || 'Error al subir') + '</span>';
+          showToast(upData.message || 'Error al subir', 'err');
+        }
       } catch(e) { statusDiv.innerHTML = '<span style="color:#F87171"><i class="fas fa-times-circle mr-1"></i> Error de conexión</span>'; }
     };
     img.onerror = function() { statusDiv.innerHTML = ''; showToast('Error al leer la imagen', 'err'); };
@@ -3242,7 +3261,7 @@
     if (lowerMsg === 'asesor' || lowerMsg === 'asesora' || lowerMsg === 'agente' || lowerMsg === 'humano' || lowerMsg === 'persona') { requestAdvisor(); return; }
     showTyping(true);
     try {
-      const res = await callGas('getSmartBotReply', { sessionId: chatState.sessionId, msg, productsJson: JSON.stringify(appState.products), configJson: JSON.stringify(appState.config) });
+      const res = await callGas('getSmartBotReply', { sessionId: chatState.sessionId, msg });
       showTyping(false);
       if (res && res.reply) appendChatBubble('bot', res.reply);
     } catch(e) {
