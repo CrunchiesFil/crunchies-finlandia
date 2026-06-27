@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Crunchies Finlandia — Cucharas Comestibles</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="icon" type="image/png" href="https://i.imgur.com/xSO6E8Z.png">
   <link rel="apple-touch-icon" href="https://i.imgur.com/xSO6E8Z.png">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script>
@@ -506,7 +506,31 @@
     .reply-modal-box{background:var(--adm-surface);border:1px solid var(--adm-border);border-radius:16px;width:95%;max-width:650px;max-height:90vh;overflow-y:auto;box-shadow:0 25px 60px rgba(0,0,0,.5);display:flex;flex-direction:column}
     .reply-modal-head{padding:20px 24px;border-bottom:1px solid var(--adm-border);display:flex;align-items:center;justify-content:space-between}
     .reply-modal-body{padding:24px;overflow-y:auto;flex:1}
-    .reply-modal-footer{padding:16px 24px;border-top:1px solid var(--adm-border);display:flex;justify-content:flex-end;gap:10px}    
+    .reply-modal-footer{padding:16px 24px;border-top:1px solid var(--adm-border);display:flex;justify-content:flex-end;gap:10px}
+    .blog-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);opacity:0;animation:blogFadeIn .3s ease forwards}
+    @keyframes blogFadeIn{to{opacity:1}}
+    .blog-modal-box{background:var(--card);border-radius:20px;width:95%;max-width:680px;max-height:90vh;overflow:hidden;box-shadow:0 25px 80px rgba(0,0,0,.35);display:flex;flex-direction:column;transform:translateY(30px) scale(.97);animation:blogSlideIn .35s ease forwards}
+    @keyframes blogSlideIn{to{transform:translateY(0) scale(1)}}
+    .blog-modal-hero{width:100%;height:220px;background-size:cover;background-position:center;position:relative;flex-shrink:0}
+    .blog-modal-hero::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,var(--card) 100%)}
+    .blog-modal-close{position:absolute;top:14px;right:14px;z-index:2;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.9);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;color:var(--fg);box-shadow:0 2px 10px rgba(0,0,0,.15);transition:transform .2s}
+    .blog-modal-close:hover{transform:scale(1.1)}
+    .blog-modal-body{padding:0 28px 28px;overflow-y:auto;flex:1;margin-top:-30px;position:relative;z-index:1}
+    .blog-modal-tag{display:inline-block;padding:4px 14px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+    .blog-modal-body h2{font-family:'DM Serif Display',serif;font-size:1.5rem;line-height:1.3;color:var(--fg);margin:0 0 8px}
+    .blog-modal-body .blog-meta{font-size:.78rem;color:var(--muted);margin-bottom:20px;display:flex;align-items:center;gap:12px}
+    .blog-modal-body .blog-content{font-size:.92rem;line-height:1.8;color:#444;margin-bottom:20px}
+    .blog-modal-body .blog-content strong{color:var(--fg)}
+    .blog-modal-body .blog-content ul{margin:12px 0;padding-left:0;list-style:none}
+    .blog-modal-body .blog-content ul li{position:relative;padding-left:24px;margin-bottom:10px}
+    .blog-modal-body .blog-content ul li::before{content:'';position:absolute;left:0;top:9px;width:8px;height:8px;border-radius:50%;background:var(--primary)}
+    .blog-modal-links{background:var(--bg);border-radius:12px;padding:18px 20px;margin-top:8px}
+    .blog-modal-links h4{font-size:.8rem;font-weight:700;color:var(--fg);margin:0 0 12px;text-transform:uppercase;letter-spacing:.5px}
+    .blog-modal-links a{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);text-decoration:none;color:var(--primary);font-size:.85rem;font-weight:600;transition:color .2s}
+    .blog-modal-links a:last-child{border-bottom:none}
+    .blog-modal-links a:hover{color:var(--accent)}
+    .blog-modal-links a i{font-size:.7rem;flex-shrink:0}
+    @media(max-width:640px){.blog-modal-hero{height:160px}.blog-modal-body{padding:0 20px 20px}.blog-modal-body h2{font-size:1.25rem}}
     /* ==========================================
       ADMIN: DASHBOARD
       ========================================== */
@@ -1147,7 +1171,7 @@
             <div class="blog-card-body">
               <h3 data-t="blog1_title">¿Por qué elegir cucharas comestibles?</h3>
               <p data-t="blog1_desc">Descubre cómo las cucharas hechas de ingredientes naturales pueden reemplazar el plástico de un solo uso y reducir toneladas de desechos al año.</p>
-              <a href="#" onclick="showToast('Artículo próximamente', 'ok'); return false;" class="blog-card-link" data-t="blog_read">Leer más <i class="fas fa-arrow-right"></i></a>
+              <a href="#" onclick="openBlogModal(1); return false;" class="blog-card-link" data-t="blog_read">Leer más <i class="fas fa-arrow-right"></i></a>
             </div>
           </article>
           <!-- Artículo 2 -->
@@ -1159,7 +1183,7 @@
             <div class="blog-card-body">
               <h3 data-t="blog2_title">Cinco formas de reducir el plástico de un solo uso</h3>
               <p data-t="blog2_desc">Desde bolsas reutilizables hasta utensilios comestibles: cinco cambios simples que puedes hacer hoy mismo para un planeta más limpio.</p>
-              <a href="#" onclick="showToast('Artículo próximamente', 'ok'); return false;" class="blog-card-link" data-t="blog_read">Leer más <i class="fas fa-arrow-right"></i></a>
+              <a href="#" onclick="openBlogModal(2); return false;" class="blog-card-link" data-t="blog_read">Leer más <i class="fas fa-arrow-right"></i></a>
             </div>
           </article>
           <!-- Artículo 3 -->
@@ -1171,7 +1195,7 @@
             <div class="blog-card-body">
               <h3 data-t="blog3_title">Beneficios de los utensilios sostenibles</h3>
               <p data-t="blog3_desc">Más allá de ser ecológicos, los utensilios sostenibles aportan nutrientes, texturas únicas y una experiencia gastronómica diferente.</p>
-              <a href="#" onclick="showToast('Artículo próximamente', 'ok'); return false;" class="blog-card-link" data-t="blog_read">Leer más <i class="fas fa-arrow-right"></i></a>
+              <a href="#" onclick="openBlogModal(3); return false;" class="blog-card-link" data-t="blog_read">Leer más <i class="fas fa-arrow-right"></i></a>
             </div>
           </article>
           <!-- Artículo 4 -->
@@ -1183,7 +1207,7 @@
             <div class="blog-card-body">
               <h3 data-t="blog4_title">Cómo Finlandia promueve el consumo responsable</h3>
               <p data-t="blog4_desc">Conoce las políticas y cultura finlandesa que la posicionan como líder mundial en sostenibilidad y economía circular.</p>
-              <a href="#" onclick="showToast('Artículo próximamente', 'ok'); return false;" class="blog-card-link" data-t="blog_read">Leer más <i class="fas fa-arrow-right"></i></a>
+              <a href="#" onclick="openBlogModal(4); return false;" class="blog-card-link" data-t="blog_read">Leer más <i class="fas fa-arrow-right"></i></a>
             </div>
           </article>
         </div>
@@ -3493,6 +3517,70 @@
 
   function showToast(msg, type='info') { let box = document.getElementById('toastBox'); let t = document.createElement('div'); t.className = `toast toast-${type}`; t.innerText = msg; box.appendChild(t); setTimeout(() => t.remove(), 4000); }
   function initObserver() { let obs = new IntersectionObserver((entries) => { entries.forEach(entry => { if(entry.isIntersecting) entry.target.classList.add('active'); }); }, { threshold: 0.1 }); document.querySelectorAll('.reveal').forEach(el => obs.observe(el)); }
+
+  // ==========================================
+  // BLOG MODAL
+  // ==========================================
+  var blogPosts = [
+    {
+      id: 1, tag: 'Sostenibilidad', tagBg: 'rgba(13,92,74,.85)', tagColor: '#fff',
+      img: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=400&fit=crop',
+      title: '¿Por qué elegir cucharas comestibles?',
+      time: '3 min de lectura',
+      content: '<p>Los cubiertos de plástico se usan solo unos minutos, pero tardan más de <strong>400 años en desaparecer</strong>, contaminando mares y afectando la fauna. Las cucharas de madera, por su parte, suelen alterar el sabor de los alimentos.</p><p>Frente a esto, las cucharas comestibles son la <strong>solución definitiva de residuo cero (Zero Waste)</strong>. Nuestras Crunchies transforman un desecho en un complemento delicioso para tu postre o café; resisten temperaturas frías o calientes, aportan una textura crocante única y se biodegradan de forma natural si decides no comértelas.</p>',
+      links: [
+        { text: 'Programa de la ONU para el Medio Ambiente — Crisis plástica', url: 'https://www.unep.org/es/noticias-y-relatos/historia/contaminacion-por-plastico' },
+        { text: 'Organización Mundial de la Salud — Impacto en la salud', url: 'https://www.who.int/es/news-room/fact-sheets/detail/microplastic-in-drinking-water' }
+      ]
+    },
+    {
+      id: 2, tag: 'Consejos', tagBg: 'rgba(212,145,94,.9)', tagColor: '#fff',
+      img: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=800&h=400&fit=crop',
+      title: 'Cinco formas de reducir el plástico de un solo uso',
+      time: '2 min de lectura',
+      content: '<p>Cuidar el planeta no requiere cambios drásticos, sino pequeños hábitos diarios. Te compartimos cinco ideas prácticas para lograrlo en tu rutina:</p><ul><li><strong>Lleva tu kit:</strong> Usa siempre termos de acero y bolsas de tela reutilizables.</li><li><strong>Diles no a los pitillos:</strong> Son de los objetos que más contaminan las playas. Recházalos.</li><li><strong>Compra a granel:</strong> Evita alimentos envueltos en bandejas de plástico innecesarias.</li><li><strong>Elige cubiertos ecológicos:</strong> En tus salidas por helados, opta por cubiertos comestibles como Crunchies.</li><li><strong>Contagia el hábito:</strong> Comparte estos tips con tu entorno para multiplicar el impacto positivo.</li></ul>',
+      links: []
+    },
+    {
+      id: 3, tag: 'Beneficios', tagBg: 'rgba(45,212,191,.9)', tagColor: '#fff',
+      img: 'https://images.unsplash.com/photo-1607619106594-9e7350900dbf?w=800&h=400&fit=crop',
+      title: 'Beneficios de los utensilios sostenibles',
+      time: '3 min de lectura',
+      content: '<p>Usar utensilios ecológicos va más allá de un beneficio ético; es una necesidad de salud y negocios.</p><p><strong>Ambientalmente</strong>, los materiales orgánicos reducen hasta un <strong>80% las emisiones de carbono</strong> en su producción.</p><p><strong>En salud</strong>, garantizan que no ingerirás microplásticos ni químicos nocivos como el BPA.</p><p><strong>A nivel comercial</strong>, el uso de estos cubiertos mejora la reputación de las empresas, atrae al consumidor global consciente y asegura que el negocio cumpla con las normativas ambientales más estrictas del mercado internacional.</p>',
+      links: []
+    },
+    {
+      id: 4, tag: 'Inspiración', tagBg: 'rgba(13,92,74,.85)', tagColor: '#fff',
+      img: 'https://images.unsplash.com/photo-1531973576160-7125cd663d86?w=800&h=400&fit=crop',
+      title: 'Cómo Finlandia promueve el consumo responsable',
+      time: '3 min de lectura',
+      content: '<p>Finlandia es el <strong>líder mundial en economía circular</strong> gracias a la unión entre leyes estrictas y cultura ciudadana.</p><p>El gobierno implementa el sistema <strong>Palpa</strong>, que devuelve dinero por reciclar envases, logrando que se recicle más del <strong>90%</strong>. Además, los finlandeses son educados desde niños en el respeto a la naturaleza, por lo que exigen empaques ecológicos y alternativas de desperdicio cero.</p><p>Esta madurez del mercado convierte a la región nórdica en el <strong>escenario ideal para introducir nuestras cucharas comestibles</strong>.</p>',
+      links: []
+    }
+  ];
+
+  function openBlogModal(id) {
+    var post = blogPosts.find(function(b) { return b.id === id; });
+    if (!post) return;
+    var linksHtml = '';
+    if (post.links && post.links.length > 0) {
+      linksHtml = '<div class="blog-modal-links"><h4>🔗 Lecturas recomendadas</h4>';
+      post.links.forEach(function(l) { linksHtml += '<a href="' + l.url + '" target="_blank" rel="noopener">' + l.text + ' <i class="fas fa-external-link-alt"></i></a>'; });
+      linksHtml += '</div>';
+    }
+    var o = document.createElement('div');
+    o.className = 'blog-modal-overlay';
+    o.id = 'blogModalOverlay';
+    o.onclick = function(e) { if (e.target === o) closeBlogModal(); };
+    o.innerHTML = '<div class="blog-modal-box"><div class="blog-modal-hero" style="background-image:url(\'' + post.img + '\')"><button class="blog-modal-close" onclick="closeBlogModal()"><i class="fas fa-times"></i></button></div><div class="blog-modal-body"><span class="blog-modal-tag" style="background:' + post.tagBg + ';color:' + post.tagColor + '">' + post.tag + '</span><h2>' + post.title + '</h2><div class="blog-meta"><i class="far fa-clock"></i> ' + post.time + '</div><div class="blog-content">' + post.content + '</div>' + linksHtml + '</div></div>';
+    document.body.appendChild(o);
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeBlogModal() {
+    var o = document.getElementById('blogModalOverlay');
+    if (o) { o.remove(); document.body.style.overflow = ''; }
+  }
   function escapeHtml(t) { let d = document.createElement('div'); d.appendChild(document.createTextNode(t)); return d.innerHTML; }
   function getTimeAgo(iso) { let d = Date.now() - new Date(iso).getTime(); let m = Math.floor(d / 60000); if (m < 1) return 'Ahora'; if (m < 60) return 'Hace ' + m + ' min'; let h = Math.floor(m / 60); if (h < 24) return 'Hace ' + h + 'h'; return 'Hace ' + Math.floor(h / 24) + 'd'; }
 
